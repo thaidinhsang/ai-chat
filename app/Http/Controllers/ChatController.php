@@ -161,8 +161,8 @@ Phản hồi chuẩn khi khách yêu cầu đổi size:
         return response()->json([
             'success'        => true,
             'customer_id'    => $customer->id,
-            'product_code'   => $productCode,
             'applied_price'  => $price,
+            'applied_price_combo'  => $price_combo,
             'currency'       => $currency,
             'ai_reply'       => $reply,
         ]);

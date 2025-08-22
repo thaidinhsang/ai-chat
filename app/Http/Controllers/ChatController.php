@@ -16,9 +16,10 @@ class ChatController extends Controller
     {
         $productCode = $req->input('product_code','combo');
         $currency    = $req->input('currency', config('app.default_currency', env('DEFAULT_CURRENCY','VND')));
-        $defaultPrice= (float) env('DEFAULT_COMBO_PRICE', 300000);
-
-        $customer = DB::transaction(function () use ($req) {
+        $defaultPrice= (float) env('DEFAULT_COMBO_PRICE', 150000);
+        $priceInput = $req->input('deal_price', $defaultPrice);
+        $priceComboInput = $req->input('price_combo', 300000);
+        $customer = DB::transaction(function () use ($req, $priceInput, $priceComboInput) {
             $customer = Customer::query()
                 ->firstOrCreate(
                     [
@@ -39,8 +40,8 @@ class ChatController extends Controller
                         'customer_id' => $customer->id,
                     ],
                     [
-                        'price'    => (float) $req->input('deal_price'),
-                        'price_combo'    => (float) $req->input('price_combo'),
+                        'price'    => (float) $priceInput,
+                        'price_combo'    => (float) $priceComboInput,
                         'currency' => $req->input('currency', env('DEFAULT_CURRENCY','VND')),
                         'source'   => 'api-inbound',
                     ]

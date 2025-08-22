@@ -18,8 +18,8 @@ class ChatController extends Controller
         $currency    = $req->input('currency', config('app.default_currency', env('DEFAULT_CURRENCY','VND')));
         $defaultPrice= (float) env('DEFAULT_UNIT_PRICE', 150000);
         $defaultComboPrice= (float) env('DEFAULT_COMBO_PRICE', 150000);
-        $priceInput = $req->input('deal_price', 150000);
-        $priceComboInput = $req->input('price_combo', 300000);
+        $priceInput = $req->input('deal_price', $defaultPrice);
+        $priceComboInput = $req->input('price_combo', $defaultComboPrice);
         $customer = DB::transaction(function () use ($req, $priceInput, $priceComboInput) {
             $customer = Customer::query()
                 ->firstOrCreate(
@@ -33,7 +33,21 @@ class ChatController extends Controller
                         'meta'  => null,
                     ]
                 );
-
+            if(!empty($customer->deals()->first())) {
+                // Nếu có deal thì không cần tạo mới
+            }
+            else
+            {
+                // Nếu không có deal thì tạo mới deal với giá mặc định
+                CustomerDeal::create([
+                    'customer_id' => $customer->id,
+                    'product_code'=> "",
+                    'price'       => (float) $priceInput,
+                    'price_combo' => (float) $priceComboInput,
+                    'currency'    => $req->input('currency', env('DEFAULT_CURRENCY','VND')),
+                    'source'      => 'api-inbound',
+                ]);
+            }
             // Nếu có deal_price trong request thì upsert deal cho KH này
             if ($req->filled('deal_price')) {
                 CustomerDeal::updateOrCreate(
@@ -66,11 +80,9 @@ class ChatController extends Controller
             return $customer;
         });
 
-        // Lấy deal hiện tại (nếu có), ngược lại dùng default
         $deal = $customer->deals()->first();
         $price = $deal && !$deal->isExpired() ? (float)$deal->price : $priceInput;
         $price_combo = $deal && !$deal->isExpired() ? (float)$deal->price_combo : $priceComboInput;
-        // dd($deal);
         // Guarded prompt: ép AI chỉ dùng giá từ context
         $system = [
             'Đóng vai trò là Thanh Lan - nhân viên chăm sóc khách hàng của shop. Gọi chị, xưng em. 

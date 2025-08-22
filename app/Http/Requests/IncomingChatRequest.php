@@ -22,9 +22,9 @@ class IncomingChatRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'page_id' => ['nullable', 'string'],
+            'page_id' => ['required', 'string'],
             'customer_external_id' => ['required', 'string'],
-            'message' => ['required', 'string'],
+            'message' => ['nullable', 'string'],
             'product_code' => ['nullable', 'string'],
             'deal_price' => ['nullable', 'numeric'],
             'price_combo' => ['nullable', 'numeric'],

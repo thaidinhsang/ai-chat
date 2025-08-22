@@ -17,7 +17,7 @@ class ChatController extends Controller
         $productCode = $req->input('product_code','combo');
         $currency    = $req->input('currency', config('app.default_currency', env('DEFAULT_CURRENCY','VND')));
         $defaultPrice= (float) env('DEFAULT_COMBO_PRICE', 150000);
-        $priceInput = $req->input('deal_price', $defaultPrice);
+        $priceInput = $req->input('deal_price', 150000);
         $priceComboInput = $req->input('price_combo', 300000);
         $customer = DB::transaction(function () use ($req, $priceInput, $priceComboInput) {
             $customer = Customer::query()
@@ -67,8 +67,8 @@ class ChatController extends Controller
 
         // Lấy deal hiện tại (nếu có), ngược lại dùng default
         $deal = $customer->deals()->first();
-        $price = $deal && !$deal->isExpired() ? (float)$deal->price : $defaultPrice;
-        $price_combo = $deal && !$deal->isExpired() ? (float)$deal->price_combo : $defaultPrice;
+        $price = $deal && !$deal->isExpired() ? (float)$deal->price : $priceInput;
+        $price_combo = $deal && !$deal->isExpired() ? (float)$deal->price_combo : $priceComboInput;
         // dd($deal);
         // Guarded prompt: ép AI chỉ dùng giá từ context
         $system = [

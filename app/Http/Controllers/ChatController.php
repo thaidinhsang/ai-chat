@@ -152,7 +152,7 @@ Phản hồi chuẩn khi khách yêu cầu đổi size:
         ];
 
         $contextText = sprintf(
-            'CONTEXT:\n- Khách hàng tên là: %s, Giá combo áp dụng cho khách này: %s %s, Giá lẻ áp dụng cho khách này là: %sVND\n- Yêu cầu: trả lời tự nhiên, lịch sự, không thay đổi giá, dựa vào câu hỏi là combo hay giá lẻ để lấy giá đúng. Thêm các khuyến mãi nếu có và chính sách giao hàng. Phải gọi tên khách hàng trong câu trả lời. ',
+            'CONTEXT:\n- Khách hàng tên là: %s, Giá combo áp dụng cho khách này: %sVND, Giá lẻ áp dụng cho khách này là: %sVND\n- Yêu cầu: trả lời tự nhiên, lịch sự, không thay đổi giá, dựa vào câu hỏi là combo hay giá lẻ để lấy giá đúng. Thêm các khuyến mãi nếu có và chính sách giao hàng. Phải gọi tên khách hàng trong câu trả lời. ',
             $customer->name, number_format($price_combo,0,',','.'), number_format($price,0,',','.'), $currency
         );
 

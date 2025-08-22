@@ -10,7 +10,7 @@ use Illuminate\Support\Carbon;
 class CustomerDeal extends Model
 {
     use HasFactory;
-    protected $fillable = ['customer_id','product_code','price','currency','expires_at','source','meta'];
+    protected $fillable = ['customer_id','product_code','price','price_combo','currency','expires_at','source','meta'];
     protected $casts = ['meta' => 'array','expires_at' => 'datetime'];
 
 

@@ -26,7 +26,8 @@ class IncomingChatRequest extends FormRequest
             'customer_external_id' => ['required', 'string'],
             'message' => ['required', 'string'],
             'product_code' => ['nullable', 'string'],
-            'deal_price' => ['nullable', 'numeric'], // nếu gửi kèm thì upsert
+            'deal_price' => ['nullable', 'numeric'],
+            'price_combo' => ['nullable', 'numeric'],
             'currency' => ['nullable', 'string', 'max:8'],
             'customer_name' => ['nullable', 'string'],
             'customer_phone' => ['nullable', 'string'],

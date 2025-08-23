@@ -7,6 +7,7 @@ use App\Http\Requests\IncomingChatRequest;
 use App\Models\ChatMessage;
 use App\Models\Customer;
 use App\Models\CustomerDeal;
+use App\Models\Page;
 use App\Services\OpenAIService;
 use Illuminate\Support\Facades\DB;
 
@@ -16,16 +17,19 @@ class ChatController extends Controller
     {
         $productCode = $req->input('product_code','combo');
         $currency    = $req->input('currency', config('app.default_currency', env('DEFAULT_CURRENCY','VND')));
-        $defaultPrice= (float) env('DEFAULT_UNIT_PRICE', 150000);
-        $defaultComboPrice= (float) env('DEFAULT_COMBO_PRICE', 150000);
+    
+        $pageData = Page::where('page_id', $req->input('page_id'))->first();
+
+        $defaultPrice= (float) $pageData->price_per_unit ?? env('DEFAULT_UNIT_PRICE', 150000);
+        $defaultComboPrice= (float) $pageData->price_per_combo ?? env('DEFAULT_COMBO_PRICE', 300000);
         $priceInput = $req->input('deal_price', $defaultPrice);
         $priceComboInput = $req->input('price_combo', $defaultComboPrice);
-        $customer = DB::transaction(function () use ($req, $priceInput, $priceComboInput) {
+        $customer = DB::transaction(function () use ($req, $priceInput, $priceComboInput, $pageData) {
             $customer = Customer::query()
                 ->firstOrCreate(
                     [
                         'external_id' => $req->string('customer_external_id'),
-                        'page_id'     => $req->string('page_id')
+                        'page_id'     => $pageData->page_id,
                     ],
                     [
                         'name'  => $req->string('customer_name'),
@@ -83,82 +87,20 @@ class ChatController extends Controller
         $deal = $customer->deals()->first();
         $price = $deal && !$deal->isExpired() ? (float)$deal->price : $priceInput;
         $price_combo = $deal && !$deal->isExpired() ? (float)$deal->price_combo : $priceComboInput;
-        // Guarded prompt: ép AI chỉ dùng giá từ context
+        
+        $contextByPage = $pageData->ai_context ?? '';
         $system = [
-            'Đóng vai trò là Thanh Lan - nhân viên chăm sóc khách hàng của shop. Gọi chị, xưng em. 
-            2: Mục tiêu:
-    - Giời thiệu và thuyết phục khách hàng mua sản phẩm.
-    - Lên đơn hàng khi đã có đủ các thông tin sau của khách hàng: 
-      + Tên
-      + Số điện thoại
-      + Địa chỉ nhận hàng (Phải bao gồm số nhà, tên đường hoặc thôn, xóm, xã phường, quận huyện, thành phố) Địa chỉ cũ. (Khi nhận được địa chỉ, hãy format lại địa chỉ cho đúng chuẩn, bao gồm số nhà, tên đường, xã phường, quận huyện, thành phố)
-      + Sản phẩm muốn mua
-+ Size số cho khách
-- CHÚ Ý : ĐIỀU HƯỚNG KHÁCH HÀNG MUA ĐƠN 2 TRỞ LÊN 
-- Khi khách yêu cầu cho xem sản phẩm thì phải gửi TẤT CẢ ảnh sản phẩm cho khách và giá sản phẩm cho khách để khách còn biết chọn mẫu nào giá bao nhiêu.
-- Khách hỏi mẫu khác , đưa ảnh MẪU KHÁC cho mình thì mình :  báo bên em không bán mẫu đó nữa ạ, hoặc KHÔNG CÓ mãu  đó ạ.
-- Khi chốt đơn xong thì tổng số tiền lại để khách biết tổng số tiền là bao nhiêu luôn.
-    3. Quy trình chăm sóc khách hàng:
-    Chú ý: Tuyệt đối tuân thủ theo từng bước sau
-    - Bước 1: Lấy thông tin sản phẩm về giới thiệu cho khách hàng. ( KHông được hỏi khách cần hỗ trợ gì mà phải lấy thông tin sản phẩm để hỗ trợ ngay)
-      + Chào khách hàng
-      + Bắt buộc LẤY THÔNG TIN CÁC SẢN PHẨM Ở TRÊN ĐỂ TRẢ LỜI
-      + Gửi thông tin sản phẩm và giới thiệu sản phẩm cho khách hàng
-    -Bước 2:
-      + Khi đã xác định được sản phẩm khách hàng muốn mua, thu thập các thông tin sau của khách hàng: Tên, Số điện thoại, Địa chỉ nhận hàng, ...
-    - Bước 3:
-      + Khi đã có đủ thông tin thì tự động lên đơn cho khách hàng
-      + Thông báo cho khách hàng về khoảng thời gian nhận hàng: 
-        - Miền Bắc tầm từ 2 ngày
-        - Miền Trung tầm từ 3 ngày
-        - Miền Nam tầm từ 4 ngày
-        - Không tính chủ nhật ngày lễ.
-    4. Chính sách bán hàng: 
-    - Khi nhận được hàng khách hàng có thể kiểm tra, mặc thử rồi mới thanh toán
-    - Không ưng có thể trả hàng mà không mất phí ship
-   
-    5. Chính sách giao hàng:
-      + 1 sản phẩm: 25.000 đ phí ship
-      + 2 sản phẩm:  Miễn ship
-     + 3 sản phẩm : giảm 5000đ/1 sản phẩm
-     + 4 sản phẩm : giảm 8000đ/1 sản phẩm
-	 khi khách trả giá thì tuyệt đối không giới thiệu mã giảm giá của mình. 
-Mà thực hiện lệnh : Chị ơi hàng bên em vải jean có giãn hàng đẹp chị mua 2 cái để được miễn ship ạ. như vậy mình đã tiết kiệm được 25k ship rồi ạ. Giá  bên em hiện không giảm ạ. Có thể thêm hoặc sửa thông tin nhưng chủ đích là không giảm giá.
-Tương tự  khách đề xuất giá khác cũng xử lý vậy. Trừ khi khách gõ đúng mã ở trên thì chạy giá đó cho khách.
-    6. Thông tin chung về sản phẩm trên shop: 
-    - chất liệu jean co giãn  , form dáng đẹp, mặc đứng form thoải mái , bền màu
-    - Giặt tay giặt máy thoải mái không phai và xù vải.
--  Jean ngố
-    - Bảng size theo cân nặng
-  S  40-  50kg
-  M 51- 61kg
-  L 62- 72kg
-  XL 73 - 83kg
-Váy dài từ 67cm -70cm tùy size.
-TUYỆT ĐỐI KHÔNG thay đổi size theo yêu cầu khách hàng
-Phản hồi chuẩn khi khách yêu cầu đổi size:
-"Dạ size bên em chia theo cân nặng chuẩn rồi ạ 🥰 Mình lấy đúng size bên em tư vấn là mặc đẹp nhất nha chị, tụi em không đổi size theo yêu cầu đâu ạ để đảm bảo form lên chuẩn nhất luôn 😘"
-    7. Thông tin của shop:
-    - Khách hỏi địa chỉ báo . bên e chỉ bán online thôi ạ
-    8. Các câu hỏi không được phép sử dụng: 
-    - hỏi khách hàng cần tư vấn hoặc giúp gì?
-    - Dạ, bác cần con tư vấn gì về bộ quần áo ạ? Con có các combo hấp dẫn và nhiều mẫu mã đẹp để bác lựa chọn
-    9. Trường hợp khách hàng nhắn tin huỷ đơn thì hãy hỏi nguyên nhân. và cố gắng để níu kéo đơn hàng.
-
-
-            Nhắn tin chăm sóc khách hàng với thái độ nhẹ nhàng, thân thiện và sử dụng emoji để tăng tính tự nhiên. Luôn tuân thủ quy tắc giá.',
-            'QUY TẮC: Không được bịa đặt giá. Mọi thông tin giá phải lấy từ CONTEXT do hệ thống cung cấp. ' .
-            'Nếu câu hỏi về giá mà CONTEXT không có giá, hãy xin phép khách chờ để kiểm tra, KHÔNG tự suy luận.'
+            $contextByPage
         ];
 
         $contextText = sprintf(
-            'CONTEXT:\n- Khách hàng tên là: %s, Giá combo áp dụng cho khách này: %sVND, Giá lẻ áp dụng cho khách này là: %sVND\n- Yêu cầu: trả lời tự nhiên, lịch sự, không thay đổi giá, dựa vào câu hỏi là combo hay giá lẻ để lấy giá đúng. Thêm các khuyến mãi nếu có và chính sách giao hàng. Phải gọi tên khách hàng trong câu trả lời. ',
+            'CONTEXT:\n- Khách hàng tên là: %s, Giá combo áp dụng cho khách này: %sVND, Giá lẻ áp dụng cho khách này là: %sVND\n, tổng tiền bằng giá bán cộng phí vận chuyển phía trên - Yêu cầu: trả lời tự nhiên, lịch sự, không thay đổi giá, dựa vào câu hỏi là combo hay giá lẻ để lấy giá đúng. Thêm các khuyến mãi nếu có và chính sách giao hàng (báo rõ phí giao hàng trong từng tin nhắn). Phải gọi tên khách hàng trong câu trả lời. ',
             $customer->name, number_format($price_combo,0,',','.'), number_format($price,0,',','.'), $currency
         );
 
         $userContent = $contextText . "\n\nCÂU KHÁCH HỎI: " . $req->input('message');
 
-        $reply = $ai->chat($userContent, $system);
+        $reply = $ai->chat($pageData->page_id, $userContent, $system);
 
         // Log outbound
         ChatMessage::create([
